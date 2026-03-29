@@ -1,29 +1,187 @@
+# ==========================================
+
+# DEEPFAKE DETECTION PIPELINE (CELEBDF)
+
+# ==========================================
+
+#  ALWAYS RUN FROM PROJECT ROOT:
+
+# cd temporal-deepfake-detection/temporal-deepfake-detection
+
+# ==========================================
+
+# STEP 0 — SETUP ENVIRONMENT
+
+# ==========================================
+
 python -m venv venv
 .\venv\Scripts\Activate
+pip install -r requirements.txt
 
-prepare frames + splits
-python src/prepare_celebdf.py
+# ==========================================
 
-extract face crops
-python src/extract_faces_celebdf.py
+# STEP 1 — PREPARE FRAMES
 
-generate TRAG input .npy from face frames
-python src/extract_trag_input.py
+# ==========================================
 
-extract TRAG features (from *.npy to *.pt)
-python src/extract_trag_features.py
+python -m src.prepare_celebdf
 
-extract CLIP features (from face frames to *.pt)
-python src/extract_clip_features.py
+# ✅ CHECK
 
-train TRAG classifier (optional, may require checkpoint/training)
-python src/train_trag_tcn.py
+dir data\processed_celebdf\frames\real
+dir data\processed_celebdf\frames\fake
 
-train fusion model
-python src/train_fusion.py
+# ==========================================
 
-test fusion cross split
-python src/test_fusion.py
+# STEP 2 — (OPTIONAL) FACE EXTRACTION not needed for us now
 
-intra dataset evaluation
-python src/test_fusion_intra.py
+# ==========================================
+
+# (Skip if using frames directly)
+
+python -m src.extract_faces_celebdf
+
+# ✅ CHECK
+
+dir data\processed_celebdf\faces\real
+
+# ==========================================
+
+# STEP 3 — GENERATE TRAG INPUT (.npy)
+
+# ==========================================
+
+# 👉 If using FRAMES directly:
+
+python -m src.extract_trag_input --input_root data/processed_celebdf/frames
+
+# ✅ CHECK COUNTS
+
+(dir data\processed_celebdf\trag\real*.npy).Count
+(dir data\processed_celebdf\trag\fake*.npy).Count
+
+# ==========================================
+
+# STEP 4 — TRAIN TRAG MODEL
+
+# ==========================================
+
+python -m src.train_trag_tcn
+
+# ✅ CHECK MODEL
+
+dir checkpoints
+
+# Expect: trag_tcn_celebdf_best.pth
+
+# ==========================================
+
+# STEP 5 — EXTRACT TRAG FEATURES (.pt)
+
+# ==========================================
+
+python -m src.extract_trag_features
+
+# ✅ CHECK
+
+(dir data\processed_celebdf\trag_features\real*.pt).Count
+
+# ==========================================
+
+# STEP 6 — EXTRACT CLIP FEATURES
+
+# ==========================================
+
+pip install git+https://github.com/openai/CLIP.git  (not needed every time)
+
+python -m src.extract_clip_features --input_root data/processed_celebdf/frames
+
+# ✅ CHECK
+
+(dir data\processed_celebdf\clip_features\real*.pt).Count
+
+# ==========================================
+
+# STEP 7 — TRAIN FUSION MODEL
+
+# ==========================================
+
+python -m src.train_fusion
+
+
+/// not sure from here
+
+# STEP 8 — TEST MODEL
+
+# ==========================================
+
+python -m src.test_fusion
+
+# ==========================================
+
+# STEP 9 — INTRA DATASET EVALUATION
+
+# ==========================================
+
+python -m src.test_fusion_intra
+
+# ==========================================
+
+# DEBUG / STATUS COMMANDS
+
+# ==========================================
+
+# 📍 Check current directory
+
+Get-Location
+
+# 📁 Check folders
+
+dir data\processed_celebdf
+
+# 📊 Count files
+
+(dir path*.pt).Count
+(dir path*.npy).Count
+
+# 🔎 Check file exists
+
+Test-Path checkpoints\trag_tcn_celebdf_best.pth
+
+# 🔍 Verify no unwanted file
+
+git ls-files | findstr view
+
+# ==========================================
+
+# IMPORTANT NOTES
+
+# ==========================================
+
+# ❌ DO NOT run like this:
+
+# python src/train_fusion.py
+
+# ✅ ALWAYS use:
+
+# python -m src.train_fusion
+
+# ==========================================
+
+# FINAL FLOW SUMMARY
+
+# ==========================================
+
+# prepare_celebdf
+
+# → extract_trag_input
+
+# → train_trag_tcn
+
+# → extract_trag_features
+
+# → extract_clip_features
+
+# → train_fusion
+
+# → test_fusion

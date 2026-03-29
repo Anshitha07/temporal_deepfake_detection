@@ -1,0 +1,29 @@
+python -m venv venv
+.\venv\Scripts\Activate
+
+prepare frames + splits
+python src/prepare_celebdf.py
+
+extract face crops
+python src/extract_faces_celebdf.py
+
+generate TRAG input .npy from face frames
+python src/extract_trag_input.py
+
+extract TRAG features (from *.npy to *.pt)
+python src/extract_trag_features.py
+
+extract CLIP features (from face frames to *.pt)
+python src/extract_clip_features.py
+
+train TRAG classifier (optional, may require checkpoint/training)
+python src/train_trag_tcn.py
+
+train fusion model
+python src/train_fusion.py
+
+test fusion cross split
+python src/test_fusion.py
+
+intra dataset evaluation
+python src/test_fusion_intra.py

@@ -1,0 +1,1 @@
+{"train": {"total": 2401, "real": 254, "fake": 2147}, "val": {"total": 514, "real": 54, "fake": 460}, "test": {"total": 516, "real": 55, "fake": 461}}

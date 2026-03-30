@@ -20,7 +20,7 @@ from src.models.fusion_model import FusionModel
 TRAG_FEAT_ROOT = "data/processed_celebdf/trag_features"
 CLIP_FEAT_ROOT = "data/processed_celebdf/clip_features"
 
-CHECKPOINT = "checkpoints/fusion_best_celebdf.pth"
+CHECKPOINT = "checkpoints/fusion_best_celebdf.pth"  # ✅ your correct file
 
 BATCH_SIZE = 8
 DEVICE = "cpu"
@@ -35,27 +35,24 @@ class CrossFusionDataset(Dataset):
 
         self.samples = []
 
-        splits = ["train", "val", "test"]  # 🔥 include ALL
+        for label_name, label in [("real", 0), ("fake", 1)]:
 
-        for split in splits:
-            for label_name, label in [("real", 0), ("fake", 1)]:
+            trag_dir = os.path.join(trag_root, label_name)
+            clip_dir = os.path.join(clip_root, label_name)
 
-                trag_dir = os.path.join(trag_root, split, label_name)
-                clip_dir = os.path.join(clip_root, split, label_name)
+            if not os.path.exists(trag_dir) or not os.path.exists(clip_dir):
+                continue
 
-                if not os.path.exists(trag_dir) or not os.path.exists(clip_dir):
-                    continue
+            trag_files = [f for f in os.listdir(trag_dir) if f.endswith(".pt")]
+            clip_files = set(os.listdir(clip_dir))
 
-                trag_files = [f for f in os.listdir(trag_dir) if f.endswith(".pt")]
-                clip_files = set(os.listdir(clip_dir))
-
-                for f in trag_files:
-                    if f in clip_files:
-                        self.samples.append((
-                            os.path.join(trag_dir, f),
-                            os.path.join(clip_dir, f),
-                            label
-                        ))
+            for f in trag_files:
+                if f in clip_files:
+                    self.samples.append((
+                        os.path.join(trag_dir, f),
+                        os.path.join(clip_dir, f),
+                        label
+                    ))
 
         print("[INFO] Total samples:", len(self.samples))
 
@@ -100,7 +97,7 @@ def load_checkpoint_safely(model, checkpoint_path, device):
         if k in model_dict and model_dict[k].shape == v.shape:
             filtered_ckpt[k] = v
         else:
-            print(f"[SKIPPED] {k} -> {v.shape}")
+            print(f"[SKIPPED] {k}")
 
     model_dict.update(filtered_ckpt)
     model.load_state_dict(model_dict)
@@ -137,10 +134,6 @@ def main():
             clip_feat = clip_feat.to(DEVICE)
             labels = labels.to(DEVICE)
 
-            if i == 0:
-                print("[DEBUG] TRAG:", trag_feat.shape)
-                print("[DEBUG] CLIP:", clip_feat.shape)
-
             logits, gates = model(trag_feat, clip_feat, return_gate=True)
 
             probs = torch.softmax(logits, dim=1)[:, 1]
@@ -166,7 +159,7 @@ def main():
     all_probs = np.array(all_probs)
     all_preds = (all_probs >= 0.5).astype(int)
 
-    acc = correct / total if total > 0 else 0
+    acc = correct / total
     roc_auc = roc_auc_score(all_labels, all_probs)
     precision = precision_score(all_labels, all_preds)
     recall = recall_score(all_labels, all_preds)
@@ -176,7 +169,7 @@ def main():
     # ================= SAVE =================
     os.makedirs("results", exist_ok=True)
 
-    output_file = "results/celebdf_fusion_predictions.csv"
+    output_file = "results/cross_dataset_predictions.csv"  # ✅ IMPORTANT
 
     with open(output_file, "w", newline="") as f:
         writer = csv.writer(f)
@@ -185,10 +178,8 @@ def main():
         for r in results:
             writer.writerow(r)
 
-    print("\n========== CROSS DATASET RESULT ==========")
-    print("Dataset:", CROSS_DATASET)
-
-    print(f"\nAccuracy  : {acc:.4f}")
+    print("\n========== RESULT ==========")
+    print(f"Accuracy  : {acc:.4f}")
     print(f"ROC-AUC   : {roc_auc:.4f}")
     print(f"Precision : {precision:.4f}")
     print(f"Recall    : {recall:.4f}")

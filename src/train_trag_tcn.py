@@ -4,10 +4,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
-import os
-os.environ["TORCHDYNAMO_DISABLE"] = "1"
 
-import torch
+os.environ["TORCHDYNAMO_DISABLE"] = "1"
 
 from src.data.trag_dataset import TRAGDataset
 from src.models.trag_tcn import TRAG_TCN
@@ -15,10 +13,10 @@ from src.models.trag_tcn import TRAG_TCN
 # ================= CONFIG =================
 TRAG_ROOT = "data/processed_celebdf/trag"
 
-BATCH_SIZE = 4
+BATCH_SIZE = 2   # 🔥 safer for BIG dataset
 EPOCHS = 10
 LR = 1e-4
-NUM_WORKERS = 2   # 🔥 safer for Windows
+NUM_WORKERS = 2
 SEED = 42
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -42,10 +40,10 @@ def run_epoch(model, loader, optimizer=None):
         B, T, C, H, W = x.shape
 
         # 🔥 spatial collapse
-        x = x.mean(dim=(3, 4))
+        x = x.mean(dim=(3, 4))   # (B, T, C)
 
         zero = torch.zeros(B, T, 1, device=x.device)
-        x = torch.cat((x, zero), dim=2)
+        x = torch.cat((x, zero), dim=2)  # (B, T, 4)
 
         with torch.set_grad_enabled(is_train):
             out = model(x)
@@ -69,19 +67,10 @@ def main():
 
     print("[INFO] Device:", DEVICE)
 
-    # ------------------------------
-    # Load dataset
-    # ------------------------------
     dataset = TRAGDataset(TRAG_ROOT)
-
-    if len(dataset) == 0:
-        raise RuntimeError("Dataset empty — check path")
 
     print(f"[INFO] Total samples: {len(dataset)}")
 
-    # ------------------------------
-    # Train/Val split
-    # ------------------------------
     train_size = int(0.8 * len(dataset))
     val_size = len(dataset) - train_size
 
@@ -124,7 +113,6 @@ def main():
             f"Train Acc: {train_acc:.4f} | Val Acc: {val_acc:.4f}"
         )
 
-        # ✅ Save best model (FIXED PATH)
         if val_acc > best_val_acc:
             best_val_acc = val_acc
 
@@ -134,7 +122,7 @@ def main():
                     "model_state": model.state_dict(),
                     "val_acc": val_acc
                 },
-                "checkpoints/trag_tcn_best.pth"   # 🔥 FIXED
+                "checkpoints/trag_tcn_best.pth"
             )
 
             print("✅ Saved BEST model")

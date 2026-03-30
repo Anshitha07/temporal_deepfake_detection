@@ -1,3 +1,4 @@
+TRAG_ROOT = "data/processed_celebdf/trag"
 import os
 import torch
 from torch.utils.data import DataLoader
@@ -7,8 +8,9 @@ from src.data.trag_dataset import TRAGDataset
 from src.models.trag_tcn import TRAG_TCN
 
 # ================= CONFIG =================
-INPUT_ROOT = "data/processed_celebdf/frames"   # ✅ HARDCODED FIX
-OUTPUT_ROOT = "data/processed_celebdf/clip_features"
+TRAG_ROOT = "data/processed_celebdf/trag"
+CKPT_PATH = "checkpoints/trag_tcn_best.pth"   # ✅ ADD THIS
+OUTPUT_ROOT = "data/processed_celebdf/trag_features"
 
 BATCH_SIZE = 1
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"

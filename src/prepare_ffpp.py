@@ -32,46 +32,49 @@ def extract_frames_from_video(video_path, out_dir, fps_skip=1):
 
 
 def prepare_frames(root_videos, output_root, fps_skip=1):
-    """Extract frames for CelebDF BIG dataset"""
+    """
+    FF++ structure:
+        original → REAL
+        Deepfakes, FaceSwap, FaceShifter → FAKE
+    """
 
     if not os.path.exists(root_videos):
-        raise FileNotFoundError(f"Dataset not found: {root_videos}")
+        raise FileNotFoundError(f"Dataset path not found: {root_videos}")
 
-    print(f"\n[INFO] Using dataset: {root_videos}")
+    print(f"[INFO] Using FF++ dataset: {root_videos}")
 
-    # ✅ FIX: Correct mapping
-    mapping = {
-        "real": ["Celeb-real"],
-        "fake": ["Celeb-fake"]
-    }
+    # 🔥 mapping
+    folders = [
+        ("original", "real"),
+        ("Deepfakes", "fake"),
+        ("FaceSwap", "fake"),
+        ("FaceShifter", "fake"),
+    ]
 
-    for label, folders in mapping.items():
+    for folder_name, label in folders:
 
-        videos = []
+        folder_path = os.path.join(root_videos, folder_name)
 
-        for folder in folders:
-            folder_path = os.path.join(root_videos, folder)
+        if not os.path.exists(folder_path):
+            print(f"[SKIP] {folder_name} not found")
+            continue
 
-            if not os.path.exists(folder_path):
-                print(f"[WARNING] Missing folder: {folder_path}")
-                continue
+        videos = sorted(glob.glob(os.path.join(folder_path, "*.mp4")))
 
-            videos.extend(glob.glob(os.path.join(folder_path, "*.mp4")))
-
-        print(f"[INFO] Found {len(videos)} {label} videos")
+        print(f"[INFO] Found {len(videos)} videos in {folder_name}")
 
         for video in videos:
             video_id = Path(video).stem
-            out_video_dir = os.path.join(output_root, label, video_id)
 
+            out_video_dir = os.path.join(output_root, label, video_id)
             os.makedirs(out_video_dir, exist_ok=True)
 
-            # ✅ Resume support
+            # resume support
             if len(os.listdir(out_video_dir)) > 0:
                 print(f"[SKIP] {video_id}")
                 continue
 
-            print(f"[PROCESS] {label}/{video_id}")
+            print(f"[PROCESS] {folder_name}/{video_id}")
 
             n = extract_frames_from_video(video, out_video_dir, fps_skip=fps_skip)
 
@@ -80,7 +83,6 @@ def prepare_frames(root_videos, output_root, fps_skip=1):
 
 
 def create_split_lists(output_root, train_ratio=0.8, seed=42):
-    """Create train/test split"""
 
     random.seed(seed)
     all_pairs = []
@@ -91,10 +93,10 @@ def create_split_lists(output_root, train_ratio=0.8, seed=42):
         if not os.path.exists(label_folder):
             continue
 
-        for video_dir in sorted(glob.glob(os.path.join(label_folder, "*"))):
-            if os.path.isdir(video_dir):
-                video_id = os.path.basename(video_dir)
-                all_pairs.append((label, video_id))
+        for video_dir in os.listdir(label_folder):
+            path = os.path.join(label_folder, video_dir)
+            if os.path.isdir(path):
+                all_pairs.append((label, video_dir))
 
     if len(all_pairs) == 0:
         raise RuntimeError("No videos found. Run frame extraction first.")
@@ -120,27 +122,27 @@ def create_split_lists(output_root, train_ratio=0.8, seed=42):
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Prepare CelebDF BIG frames")
+    parser = argparse.ArgumentParser(description="Prepare FF++ dataset")
 
     parser.add_argument(
         "--video_root",
-        default="data/celebdf_big",
-        help="path to CelebDF BIG dataset"
+        default="data/ffpp_raw",
+        help="FF++ dataset root (original, Deepfakes, etc.)"
     )
 
     parser.add_argument(
         "--out_root",
-        default="data/processed_celebdf/frames",
+        default="data/processed_ffpp/frames",
         help="output frames directory"
     )
 
-    parser.add_argument("--fps_skip", type=int, default=1)
+    parser.add_argument("--fps_skip", type=int, default=5)
     parser.add_argument("--split_train_ratio", type=float, default=0.8)
     parser.add_argument("--seed", type=int, default=42)
 
     args = parser.parse_args()
 
     prepare_frames(args.video_root, args.out_root, fps_skip=args.fps_skip)
-    create_split_lists(args.out_root, train_ratio=args.split_train_ratio, seed=args.seed)
+    create_split_lists(args.out_root, args.split_train_ratio, args.seed)
 
-    print("\n[DONE] CelebDF BIG frames prepared")
+    print("\n[DONE] FF++ frames prepared")

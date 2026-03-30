@@ -1,91 +1,172 @@
 import os
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.metrics import confusion_matrix, roc_curve, auc
+import torch
+import cv2
+import numpy as np
+
+from src.models.fusion_model import FusionModel
 
 # =========================
-CSV_PATH = "results/cross_dataset_predictions.csv"
+# CONFIG
 # =========================
+MODEL_PATH = "checkpoints/fusion_best_celebdf.pth"
 
-df = pd.read_csv(CSV_PATH)
+TRAG_ROOT = "data/processed_celebdf/trag_features"
+CLIP_ROOT = "data/processed_celebdf/clip_features"
+FRAMES_ROOT = "data/processed_celebdf/frames"
 
-# Fix #7: use the ground_truth column if available, else fall back to filename prefix
-if "ground_truth" in df.columns:
-    labels = df["ground_truth"].values
-else:
-    def get_label(name):
-        name = name.lower()
-        if name.startswith("real"):
-            return 0
-        else:
-            return 1
+OUTPUT_DIR = "results/visualizations"
 
-    df["ground_truth"] = df["video"].apply(get_label)
-    labels = df["ground_truth"].values
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-preds = df["prediction"].values
-probs = df["confidence"].values
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-accuracy = (labels == preds).mean() * 100
-print(f"\nAccuracy: {accuracy:.2f}%")
-
-os.makedirs("results", exist_ok=True)
 
 # =========================
-# Confusion Matrix
+# LOAD MODEL (SAFE)
 # =========================
+def load_model():
+    print("[INFO] Loading model...")
 
-cm = confusion_matrix(labels, preds)
+    model = FusionModel().to(DEVICE)
+    ckpt = torch.load(MODEL_PATH, map_location=DEVICE)
 
-plt.figure(figsize=(5,5))
-sns.heatmap(cm,
-            annot=True,
-            fmt="d",
-            cmap="Blues",
-            xticklabels=["Real","Fake"],
-            yticklabels=["Real","Fake"])
+    if "fusion_model" in ckpt:
+        ckpt = ckpt["fusion_model"]
+    elif "model_state" in ckpt:
+        ckpt = ckpt["model_state"]
+    elif "state_dict" in ckpt:
+        ckpt = ckpt["state_dict"]
 
-plt.xlabel("Predicted")
-plt.ylabel("Actual")
-plt.title("Confusion Matrix")
+    # remove "module." if present
+    new_ckpt = {}
+    for k, v in ckpt.items():
+        if k.startswith("module."):
+            k = k[7:]
+        new_ckpt[k] = v
 
-plt.savefig("results/confusion_matrix.png")
-plt.show()
+    model_dict = model.state_dict()
+    filtered_ckpt = {}
 
-# =========================
-# ROC Curve
-# =========================
+    for k, v in new_ckpt.items():
+        if k in model_dict and model_dict[k].shape == v.shape:
+            filtered_ckpt[k] = v
 
-fpr, tpr, _ = roc_curve(labels, probs)
-roc_auc = auc(fpr, tpr)
+    model_dict.update(filtered_ckpt)
+    model.load_state_dict(model_dict)
 
-plt.figure()
+    print(f"[INFO] Loaded {len(filtered_ckpt)} layers\n")
 
-plt.plot(fpr, tpr, label=f"AUC = {roc_auc:.3f}")
-plt.plot([0,1],[0,1],'k--')
+    model.eval()
+    return model
 
-plt.xlabel("False Positive Rate")
-plt.ylabel("True Positive Rate")
-plt.title("ROC Curve")
-plt.legend()
-
-plt.savefig("results/roc_curve.png")
-plt.show()
 
 # =========================
-# Confidence Histogram
+# VISUALIZATION FUNCTION
 # =========================
+def visualize_samples(model, num_samples=5):
 
-plt.figure()
+    print("[INFO] Generating visualizations...\n")
 
-plt.hist(probs, bins=20)
+    for label in ["real", "fake"]:
 
-plt.xlabel("Fake Probability")
-plt.ylabel("Count")
-plt.title("Prediction Confidence Distribution")
+        trag_dir = os.path.join(TRAG_ROOT, label)
+        clip_dir = os.path.join(CLIP_ROOT, label)
+        frame_dir = os.path.join(FRAMES_ROOT, label)
 
-plt.savefig("results/confidence_histogram.png")
-plt.show()
+        videos = os.listdir(trag_dir)[:num_samples]
 
-print("\nPlots saved to results/")
+        for vid_file in videos:
+
+            if not vid_file.endswith(".pt"):
+                continue
+
+            video_name = vid_file.replace(".pt", "")
+
+            trag_path = os.path.join(trag_dir, vid_file)
+            clip_path = os.path.join(clip_dir, vid_file)
+
+            frame_folder = os.path.join(frame_dir, video_name)
+
+            if not os.path.exists(clip_path) or not os.path.exists(frame_folder):
+                continue
+
+            # 🔥 Load features
+            trag_feat = torch.load(trag_path).unsqueeze(0).to(DEVICE)
+            clip_feat = torch.load(clip_path).unsqueeze(0).to(DEVICE)
+
+            # 🔥 Get one frame
+            frames = sorted(os.listdir(frame_folder))
+            if len(frames) == 0:
+                continue
+
+            frame_path = os.path.join(frame_folder, frames[0])
+
+            img = cv2.imread(frame_path)
+            img = cv2.resize(img, (224, 224))
+
+            # 🔥 Forward pass
+            with torch.no_grad():
+                logits, gate = model(trag_feat, clip_feat, return_gate=True)
+
+                probs = torch.softmax(logits, dim=1)
+                confidence = probs[0, 1].item()
+                pred = torch.argmax(probs, dim=1).item()
+
+            pred_label = "FAKE" if pred == 1 else "REAL"
+
+            # =========================
+            # DRAW RESULTS
+            # =========================
+            overlay = img.copy()
+
+            color = (0, 0, 255) if pred == 1 else (0, 255, 0)
+
+            cv2.putText(
+                overlay,
+                f"Pred: {pred_label}",
+                (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                color,
+                2
+            )
+
+            cv2.putText(
+                overlay,
+                f"Conf: {confidence:.2f}",
+                (10, 60),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (255, 255, 255),
+                2
+            )
+
+            cv2.putText(
+                overlay,
+                f"Gate: {gate.item():.2f}",
+                (10, 90),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (255, 255, 0),
+                2
+            )
+
+            # Save
+            save_path = os.path.join(
+                OUTPUT_DIR, f"{label}_{video_name}.png"
+            )
+
+            cv2.imwrite(save_path, overlay)
+
+            print(f"[SAVED] {save_path}")
+
+
+# =========================
+# MAIN
+# =========================
+if __name__ == "__main__":
+
+    model = load_model()
+    visualize_samples(model)
+
+    print("\n[DONE] Visualization complete")

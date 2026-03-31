@@ -8,9 +8,9 @@ from src.data.trag_dataset import TRAGDataset
 from src.models.trag_tcn import TRAG_TCN
 
 # ================= CONFIG =================
-TRAG_ROOT = "data/processed_celebdf/trag"
+TRAG_ROOT = "data/processed_ffpp/trag"
 CKPT_PATH = "checkpoints/trag_tcn_best.pth"   # ✅ ADD THIS
-OUTPUT_ROOT = "data/processed_celebdf/trag_features"
+OUTPUT_ROOT = "data/processed_ffpp/trag_features"
 
 BATCH_SIZE = 1
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"

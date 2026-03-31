@@ -18,8 +18,8 @@ from src.models.fusion_model import FusionModel
 
 # ================= CONFIG =================
 # For CelebDF-small 80/20 split: 160 train (80 real + 80 fake), 40 val/test (20+20)
-TRAG_FEAT_ROOT = "data/processed_celebdf/trag_features"
-CLIP_FEAT_ROOT = "data/processed_celebdf/clip_features"
+TRAG_FEAT_ROOT = "data/processed_ffpp/trag_features"
+CLIP_FEAT_ROOT = "data/processed_ffpp/clip_features"
 
 BATCH_SIZE = 32
 EPOCHS = 10
@@ -27,8 +27,8 @@ LR = 1e-3
 DEVICE = "cpu"
 SEED = 42
 
-CHECKPOINT_PATH = "checkpoints/fusion_best_celebdf.pth"
-VAL_INDICES_PATH = "checkpoints/fusion_val_indices_celebdf.json"
+CHECKPOINT_PATH = "checkpoints/fusion_best_ffpp.pth"
+VAL_INDICES_PATH = "checkpoints/fusion_val_indices_ffpp.json"
 # =========================================
 
 

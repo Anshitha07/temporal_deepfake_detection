@@ -31,31 +31,70 @@ def extract_frames_from_video(video_path, out_dir, fps_skip=1):
     return saved
 
 
+def resolve_folder_path(root_videos, folder_name):
+    """
+    Handles BOTH:
+    1. Official FF++ structure
+    2. Kaggle / zip structure
+    """
+
+    # ✅ Try official structure first
+    if folder_name == "original":
+        path = os.path.join(
+            root_videos,
+            "original_sequences",
+            "youtube",
+            "c23",
+            "videos"
+        )
+        if os.path.exists(path):
+            return path
+
+        # fallback
+        path = os.path.join(root_videos, "original")
+        if os.path.exists(path):
+            return path
+
+    else:
+        path = os.path.join(
+            root_videos,
+            "manipulated_sequences",
+            folder_name,
+            "c23",
+            "videos"
+        )
+        if os.path.exists(path):
+            return path
+
+        # fallback
+        path = os.path.join(root_videos, folder_name)
+        if os.path.exists(path):
+            return path
+
+    return None
+
+
 def prepare_frames(root_videos, output_root, fps_skip=1):
-    """
-    FF++ structure:
-        original → REAL
-        Deepfakes, FaceSwap, FaceShifter → FAKE
-    """
 
     if not os.path.exists(root_videos):
         raise FileNotFoundError(f"Dataset path not found: {root_videos}")
 
-    print(f"[INFO] Using FF++ dataset: {root_videos}")
+    print(f"[INFO] Using dataset: {root_videos}")
 
-    # 🔥 mapping
     folders = [
         ("original", "real"),
         ("Deepfakes", "fake"),
         ("FaceSwap", "fake"),
         ("FaceShifter", "fake"),
+        ("Face2Face", "fake"),
+        ("NeuralTextures", "fake"),
     ]
 
     for folder_name, label in folders:
 
-        folder_path = os.path.join(root_videos, folder_name)
+        folder_path = resolve_folder_path(root_videos, folder_name)
 
-        if not os.path.exists(folder_path):
+        if folder_path is None:
             print(f"[SKIP] {folder_name} not found")
             continue
 
@@ -64,7 +103,7 @@ def prepare_frames(root_videos, output_root, fps_skip=1):
         print(f"[INFO] Found {len(videos)} videos in {folder_name}")
 
         for video in videos:
-            video_id = Path(video).stem
+            video_id = f"{folder_name}_{Path(video).stem}"
 
             out_video_dir = os.path.join(output_root, label, video_id)
             os.makedirs(out_video_dir, exist_ok=True)
@@ -76,10 +115,12 @@ def prepare_frames(root_videos, output_root, fps_skip=1):
 
             print(f"[PROCESS] {folder_name}/{video_id}")
 
-            n = extract_frames_from_video(video, out_video_dir, fps_skip=fps_skip)
-
-            if n == 0:
-                print(f"[WARNING] No frames extracted for {video}")
+            try:
+                n = extract_frames_from_video(video, out_video_dir, fps_skip=fps_skip)
+                if n == 0:
+                    print(f"[WARNING] No frames extracted for {video}")
+            except Exception as e:
+                print(f"[ERROR] Skipping {video}: {e}")
 
 
 def create_split_lists(output_root, train_ratio=0.8, seed=42):
@@ -126,8 +167,8 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--video_root",
-        default="data/ffpp_raw",
-        help="FF++ dataset root (original, Deepfakes, etc.)"
+        required=True,
+        help="FF++ dataset root"
     )
 
     parser.add_argument(

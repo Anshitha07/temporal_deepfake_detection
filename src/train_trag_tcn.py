@@ -11,7 +11,7 @@ from src.data.trag_dataset import TRAGDataset
 from src.models.trag_tcn import TRAG_TCN
 
 # ================= CONFIG =================
-TRAG_ROOT = "data/processed_celebdf/trag"
+TRAG_ROOT = "data/processed_ffpp/trag"
 
 BATCH_SIZE = 2   # 🔥 safer for BIG dataset
 EPOCHS = 10

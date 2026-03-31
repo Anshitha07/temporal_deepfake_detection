@@ -9,8 +9,8 @@ from src.models.clip_encoder import CLIPVisualEncoder
 
 # ================= CONFIG =================
 # For CelebDF-small
-FRAMES_ROOT = "data/processed_celebdf/frames"
-OUTPUT_ROOT = "data/processed_celebdf/clip_features"
+FRAMES_ROOT = "data/processed_ffpp/frames"
+OUTPUT_ROOT = "data/processed_ffpp/clip_features"
 
 BATCH_SIZE = 1
 MAX_FRAMES = 16

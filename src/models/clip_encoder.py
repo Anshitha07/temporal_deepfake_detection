@@ -13,11 +13,9 @@ class CLIPVisualEncoder(nn.Module):
         self.clip_model.eval()
         self.clip_model.to(device)
 
-        # Freeze CLIP
         for p in self.clip_model.parameters():
             p.requires_grad = False
 
-        # CLIP normalization constants
         self.register_buffer(
             "mean",
             torch.tensor([0.48145466, 0.4578275, 0.40821073]).view(1, 3, 1, 1)
@@ -29,23 +27,21 @@ class CLIPVisualEncoder(nn.Module):
 
     def forward(self, frames):
         """
-        frames: (B, T, 3, 224, 224) in [0,1]
-        returns: (B, 512)
+        frames: (B, T, 3, 224, 224)
+        returns: (B, T, 512)  🔥 IMPORTANT CHANGE
         """
         B, T, C, H, W = frames.shape
 
-        frames = frames.view(B * T, C, H, W)
-        frames = frames.float()
-
-        # Normalize for CLIP
+        frames = frames.view(B * T, C, H, W).float()
         frames = (frames - self.mean) / self.std
         frames = frames.to(self.device)
 
         with torch.no_grad():
-            features = self.clip_model.encode_image(frames)
+            features = self.clip_model.encode_image(frames)  # (B*T, 512)
 
-        features = features.view(B, T, -1)
-        features = features.mean(dim=1)      # temporal pooling
+        features = features.view(B, T, -1)  # (B, T, 512)
+
+        # normalize per frame
         features = F.normalize(features, dim=-1)
 
         return features

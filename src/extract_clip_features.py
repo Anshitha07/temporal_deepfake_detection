@@ -8,13 +8,12 @@ from src.models.clip_encoder import CLIPVisualEncoder
 
 
 # ================= CONFIG =================
-# For CelebDF-small
-FRAMES_ROOT = "data/processed_ffpp/frames"
-OUTPUT_ROOT = "data/processed_ffpp/clip_features"
+FRAMES_ROOT = "data/processed_ffpp/faces"
+OUTPUT_ROOT = "data/processed_ffpp/clip_features2"
 
 BATCH_SIZE = 1
-MAX_FRAMES = 16
-DEVICE = "cpu"  # force CPU for local machines; change to cuda if available
+MAX_FRAMES = 32   # 🔥 increased for better temporal info
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 # ==========================================
 
 
@@ -36,17 +35,34 @@ def process_split():
     model = CLIPVisualEncoder(device=DEVICE).to(DEVICE)
     model.eval()
 
+    print(f"[INFO] Total videos: {len(dataset)}")
+
     with torch.no_grad():
 
         for idx, (frames, label) in enumerate(
-            tqdm(loader, desc="Extracting CLIP features)")
+            tqdm(loader, desc="Extracting CLIP features")
         ):
 
-            frames = frames.to(DEVICE)
+            frames = frames.to(DEVICE)  # (1, T, 3, 224, 224)
 
-            features = model(frames)
-            features = features.squeeze(0).cpu()
+            # ===============================
+            # Step 1: Get per-frame features
+            # ===============================
+            features = model(frames)        # (1, T, 512)
+            features = features.squeeze(0) # (T, 512)
 
+            # ===============================
+            # Step 2: Temporal aggregation
+            # ===============================
+            mean_feat = features.mean(dim=0)
+            max_feat, _ = features.max(dim=0)
+
+            # 🔥 FINAL FEATURE (1024 dim)
+            final_feat = torch.cat([mean_feat, max_feat], dim=0)
+
+            # ===============================
+            # Save feature
+            # ===============================
             video_dir, lbl = dataset.samples[idx]
             video_name = os.path.basename(video_dir)
 
@@ -60,16 +76,14 @@ def process_split():
 
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
-            torch.save(features, save_path)
+            torch.save(final_feat.cpu(), save_path)
+
+    print("[DONE] Feature extraction complete")
 
 
 def main():
-
     print("[INFO] Using device:", DEVICE)
-
     process_split()
-
-    print("[DONE] CLIP feature extraction complete")
     print(f"[INFO] Features saved to: {OUTPUT_ROOT}")
 
 

@@ -1,6 +1,17 @@
 import os
 import numpy as np
 import cv2
+import random
+
+def is_valid_npy(path):
+    """Check if npy file is valid and not corrupted"""
+    try:
+        arr = np.load(path)
+        if arr.ndim != 4 or arr.shape[1:] != (3, 224, 224):
+            return False
+        return True
+    except:
+        return False
 
 
 def frames_to_trag_npy(input_root, output_root, max_frames=None, image_size=224):
@@ -26,9 +37,12 @@ def frames_to_trag_npy(input_root, output_root, max_frames=None, image_size=224)
 
             out_path = os.path.join(out_label_dir, f"{video_id}.npy")
 
-            # ✅ Resume support
+            # ✅ Smart skip logic
             if os.path.exists(out_path):
-                continue
+                if is_valid_npy(out_path):
+                    continue
+                else:
+                    print(f"[FIX] Reprocessing corrupted file: {video_id}")
 
             frame_files = sorted(
                 f for f in os.listdir(video_dir)
@@ -38,8 +52,10 @@ def frames_to_trag_npy(input_root, output_root, max_frames=None, image_size=224)
             if len(frame_files) == 0:
                 continue
 
-            if max_frames is not None:
-                frame_files = frame_files[:max_frames]
+            
+
+            if max_frames is not None and len(frame_files) > max_frames:
+                frame_files = sorted(random.sample(frame_files, max_frames))
 
             print(f"Processing: {label}/{video_id} ({len(frame_files)} frames)")
 
@@ -63,7 +79,13 @@ def frames_to_trag_npy(input_root, output_root, max_frames=None, image_size=224)
             arr = np.stack(frames, axis=0)
             arr = arr.transpose(0, 3, 1, 2)
 
-            np.save(out_path, arr)
+            # ✅ Reduce memory usage
+            arr = arr.astype(np.float32)
+
+            # ✅ Safe save (prevents corruption)
+            tmp_path = out_path.replace(".npy", "_tmp.npy")
+            np.save(tmp_path, arr)
+            os.replace(tmp_path, out_path)
 
     print(f"\n[DONE] Generated TRAG inputs at {output_root}")
 
@@ -71,18 +93,17 @@ def frames_to_trag_npy(input_root, output_root, max_frames=None, image_size=224)
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Extract TRAG input arrays from frames")
+    parser = argparse.ArgumentParser(description="Extract TRAG input arrays from faces")
 
-    # 🔥 IMPORTANT CHANGE HERE
     parser.add_argument(
         "--input_root",
-        default="data/processed_celebdf/frames",  # ✅ using frames now
-        help="frame root with real/fake dirs"
+        default="data/processed_ffpp/faces",
+        help="face root with real/fake dirs"
     )
 
     parser.add_argument(
         "--output_root",
-        default="data/processed_celebdf/trag",
+        default="data/processed_ffpp/trag",
         help="output npy root"
     )
 

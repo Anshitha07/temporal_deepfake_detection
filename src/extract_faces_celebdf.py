@@ -50,8 +50,8 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Extract faces from CelebDF frame folders")
-    parser.add_argument("--input_dir", default="data/processed_celebdf/frames", help="source frames root (real/fake/video_id)")
-    parser.add_argument("--output_dir", default="data/processed_celebdf/faces", help="face crops output root")
+    parser.add_argument("--input_dir", default="data/processed_ffpp/frames", help="source frames root (real/fake/video_id)")
+    parser.add_argument("--output_dir", default="data/processed_ffpp/faces", help="face crops output root")
     parser.add_argument("--img_size", type=int, default=224, help="face crop size (square)")
 
     args = parser.parse_args()
